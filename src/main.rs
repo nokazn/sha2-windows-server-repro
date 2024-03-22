@@ -13,9 +13,9 @@ fn to_error<E: Debug>(error: E) -> Error {
 type Result<T> = result::Result<T, Error>;
 
 fn generate_hash(path: impl AsRef<Path>) -> Result<String> {
-  let mut file = fs::File::open(path).map_err(to_error)?;
+  let contents = fs::read(path).map_err(to_error)?;
   let mut hasher = Sha256::new();
-  io::copy(&mut file, &mut hasher).map_err(to_error)?;
+  hasher.update(&contents);
   let raw_hash = hasher.finalize();
   let hash = base16::encode_lower(&raw_hash);
   Ok(hash)
