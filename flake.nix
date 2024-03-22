@@ -9,21 +9,17 @@
   };
 
   outputs =
-    { self
-    , nixpkgs
+    { nixpkgs
     , flake-utils
     , naersk
     , ...
     }: flake-utils.lib.eachDefaultSystem (system:
     let
-      pkgs = (import nixpkgs) {
-        inherit system;
-      };
+      pkgs = (import nixpkgs) { inherit system; };
       naersk-lib = pkgs.callPackage naersk { };
     in
     {
-      name = "rust";
-
+      name = "sha2-windows-server-repro";
       devShells.default = with pkgs; pkgs.mkShell {
         nativeBuildInputs = [
           pkg-config

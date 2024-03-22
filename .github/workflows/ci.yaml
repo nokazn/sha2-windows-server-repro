@@ -7,34 +7,29 @@ on:
   pull_request:
 
 jobs:
-  static-check:
+  test:
     strategy:
+      fail-fast: false
       matrix:
         os:
+          - windows-latest
+          - windows-2019
           - ubuntu-latest
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: cachix/install-nix-action@v26
-        with:
-          extra_nix_config: 'experimental-features = nix-command flakes'
-      - uses: DeterminateSystems/magic-nix-cache-action@main
-      - uses: DeterminateSystems/flake-checker-action@main
-
-      - name: Run tests
-        run: nix develop -c cargo test --locked --all-features
-
-  static-check-windows:
-    strategy:
-      matrix:
-        os:
-          - windows-latest
-          - windows-2019
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
+      - name: Compute by openssl (macOS, Ubuntu)
+        if: ${{ ! startsWith(matrix.os, 'windows') }}
+        run: |
+          find ./tests/fixtures/ -type f \
+            | xargs -I {} openssl dgst -sha256 {} \
+            | sort
+      - name: Compute by Get-FileHash (Windows)
+        if: ${{ startsWith(matrix.os, 'windows') }}
+        run: |
+          powershell.exe -Command "Get-ChildItem -Recurse -File .\tests\fixtures\ | Get-FileHash -Algorithm SHA256 | Sort-Object Path | Select-Object Hash,Path"
 
       - uses: dtolnay/rust-toolchain@stable
       - name: Run tests

@@ -1,41 +1,28 @@
 mod macros;
-
+use sha2::{Digest, Sha256};
 use std::{fmt::Debug, fs, io, path::Path, result};
 
-use data_encoding::{BASE32HEX, BASE32HEX_NOPAD};
-use sha2::{Digest, Sha256};
-
 #[derive(Debug)]
-enum Error {
-  Any(String),
-}
+
+struct Error(String);
 
 fn to_error<E: Debug>(error: E) -> Error {
-  Error::Any(format!("{:?}", error))
-}
-
-enum EncodeType {
-  Base32HexNoPad,
-  Base32Hex,
+  Error(format!("{:?}", error))
 }
 
 type Result<T> = result::Result<T, Error>;
 
-fn generate_hash(path: impl AsRef<Path>, encode_type: EncodeType) -> Result<String> {
+fn generate_hash(path: impl AsRef<Path>) -> Result<String> {
   let mut file = fs::File::open(path).map_err(to_error)?;
-  dbg!(file.metadata().unwrap());
   let mut hasher = Sha256::new();
   io::copy(&mut file, &mut hasher).map_err(to_error)?;
   let raw_hash = hasher.finalize();
-  let hash = match encode_type {
-    EncodeType::Base32HexNoPad => BASE32HEX_NOPAD.encode(&raw_hash).to_lowercase(),
-    EncodeType::Base32Hex => BASE32HEX.encode(&raw_hash).to_lowercase(),
-  };
+  let hash = base16::encode_lower(&raw_hash);
   Ok(hash)
 }
 
 fn main() {
-  generate_hash("./tests/fixtures/empty.txt", EncodeType::Base32Hex).unwrap();
+  generate_hash("./tests/fixtures/empty.txt").unwrap();
 }
 
 #[cfg(test)]
@@ -43,53 +30,57 @@ mod tests {
   use super::*;
 
   struct TestCase {
-    input: (&'static str, EncodeType),
+    input: &'static str,
     expected: &'static str,
   }
 
   fn test_generate_hash_each(case: TestCase) {
-    let actual = generate_hash(case.input.0, case.input.1).unwrap();
+    let actual = generate_hash(case.input).unwrap();
     assert_eq!(actual, case.expected);
   }
 
   test_each!(
     test_generate_hash,
     test_generate_hash_each,
-    "utf8" => TestCase{
-      input: ("./tests/fixtures/empty-utf8.txt", EncodeType::Base32HexNoPad),
-      expected: "seoc8gkovge196nruj49irtp4gjqsgf4cidp6j54imchmu2in1ag"
+    "binary" => TestCase{
+      input: "./tests/fixtures/binary/bun.lockb",
+      expected: "85033ff2d163840fd691a57776940012f35656cca8bb51a9ab2848c707ca8930"
     },
-    "utf16be" => TestCase{
-      input: ("./tests/fixtures/empty-utf16be.txt", EncodeType::Base32HexNoPad),
-      expected: "u6bmia0gqhbu55vst72maeo2b0fvj6iggkhn1sktfpfu8vct6vj0"
+    "empty" => TestCase{
+      input: "./tests/fixtures/empty/.gitkeep",
+      expected: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "utf16le" => TestCase{
-      input: ("./tests/fixtures/empty-utf16le.txt", EncodeType::Base32HexNoPad),
-      expected: "mfah1ro44teahpkosmpsnc7csea9tu955s6dp0sujrhkeg4q484g"
+    "utf8-crlf" => TestCase{
+      input: "./tests/fixtures/json/utf8-crlf.json",
+      expected: "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
     },
-    "1-nopad" => TestCase{
-      input: ("./tests/fixtures/1.json", EncodeType::Base32HexNoPad),
-      expected: "p8uhcetb0l9o30ji4oa0aq7jnrrulb0ofjlteq3os2r3t7i44db0"
+    "utf8-lf" => TestCase{
+      input: "./tests/fixtures/json/utf8-lf.json",
+      expected: "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
     },
-    "1" => TestCase{
-      input: ("./tests/fixtures/1.json", EncodeType::Base32Hex),
-      expected: "p8uhcetb0l9o30ji4oa0aq7jnrrulb0ofjlteq3os2r3t7i44db0===="
+    "utf8withbom-crlf" => TestCase{
+      input: "./tests/fixtures/json/utf8withbom-crlf.json",
+      expected: "ec2f00596f643c3181e6f3c6bfb64bb07cf8994f019df013681c886bee0d8b6a"
     },
-    "npm" => TestCase{
-      input: ("./tests/fixtures/npm/package-lock.json", EncodeType::Base32HexNoPad),
-      expected: "n35ebkqk3qbla57hjkfrfrr6b6jng6s86hb3ocjrfug58q5r2j9g"
+    "utf8withbom-lf" => TestCase{
+      input: "./tests/fixtures/json/utf8withbom-lf.json",
+      expected: "ec2f00596f643c3181e6f3c6bfb64bb07cf8994f019df013681c886bee0d8b6a"
     },
-    "yarn" => TestCase{
-      input: ("./tests/fixtures/yarn/yarn.lock", EncodeType::Base32HexNoPad),
-      expected: "epmbo75as3tpiqpf1sl9q9l71crb76veee1h0eklltctme3r32eg"
+    "utf16be-crlf" => TestCase{
+      input: "./tests/fixtures/json/utf16be-crlf.json",
+      expected: "d381222dd118d2d0c2af76c3f1a79259d707a57b35c60f0ebe72b6b3dda5e533"
     },
-    "pnpm" => TestCase{
-      input: ("./tests/fixtures/pnpm/pnpm-lock.yaml", EncodeType::Base32HexNoPad),
-      expected: "soecfp556svu7nriu4o2qlrpj216m549r3iifho84uk3oap9l55g"
+    "utf16be-lf" => TestCase{
+      input: "./tests/fixtures/json/utf16be-lf.json",
+      expected: "7ef7c1a42351608778a8a1562e7acb200f5b2c336f304b9d8ec896c3fabcf99c"
     },
-    "bun" => TestCase{
-      input: ("./tests/fixtures/bun/bun.lockb", EncodeType::Base32HexNoPad),
-      expected: "gk1jvsmhce20vlkhklrnd5002bplclmcl2tl3adb514ce1uah4o0"
+    "utf16le-crlf" => TestCase{
+      input: "./tests/fixtures/json/utf16le-crlf.json",
+      expected: "d381222dd118d2d0c2af76c3f1a79259d707a57b35c60f0ebe72b6b3dda5e533"
+    },
+    "utf16le-lf" => TestCase{
+      input: "./tests/fixtures/json/utf16le-lf.json",
+      expected: "7ef7c1a42351608778a8a1562e7acb200f5b2c336f304b9d8ec896c3fabcf99c"
     },
   );
 }
