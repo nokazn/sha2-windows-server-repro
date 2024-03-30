@@ -31,12 +31,9 @@ jobs:
         run: |
           powershell.exe -Command "Get-ChildItem -Recurse -File .\tests\fixtures\ | Get-FileHash -Algorithm SHA256 | Sort-Object Path | Select-Object Hash,Path"
 
-      - uses: MinoruSekine/setup-scoop@v3
-        if: ${{ startsWith(matrix.os, 'windows') }}
       - name: Compute by OpenSSL (Windows)
         if: ${{ startsWith(matrix.os, 'windows') }}
         run: |
-          scoop install openssl
           Get-ChildItem -Recurse -File .\tests\fixtures\ | % { openssl dgst -sha256 $_.FullName }
 
       - uses: dtolnay/rust-toolchain@stable
